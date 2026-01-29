@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template
-from flask_pymongo import PyMongo
+from pymongo import MongoClient
 from datetime import datetime
 import os
 
@@ -7,13 +7,14 @@ app = Flask(__name__)
 # Try Railway's MONGO_URL first, then fallback to MONGO_URI
 mongo_uri = os.getenv("MONGO_URL") or os.getenv("MONGO_URI", "mongodb://localhost:27017/github_events")
 print(f"Using MongoDB URI: {mongo_uri[:20]}...")  # Debug log
-app.config["MONGO_URI"] = mongo_uri
 try:
-    mongo = PyMongo(app)
+    client = MongoClient(mongo_uri)
+    db = client.github_events
     print("MongoDB connection initialized")
 except Exception as e:
     print(f"MongoDB connection failed: {e}")
-    mongo = None
+    client = None
+    db = None
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -44,7 +45,7 @@ def webhook():
             event_data['from_branch'] = pr['head']['ref']
             event_data['to_branch'] = pr['base']['ref']
         
-        mongo.db.events.insert_one(event_data)
+        db.events.insert_one(event_data)
         print(f"Stored event: {event_data['action']} by {event_data['author']}")
         return jsonify({'status': 'success'}), 200
     except Exception as e:
@@ -54,7 +55,7 @@ def webhook():
 @app.route('/events', methods=['GET'])
 def get_events():
     try:
-        events = list(mongo.db.events.find().sort('timestamp', -1).limit(20))
+        events = list(db.events.find().sort('timestamp', -1).limit(20))
         for event in events:
             event['_id'] = str(event['_id'])
             # Parse ISO string back to datetime for display formatting
