@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Events Monitor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .event {
+            padding: 1rem;
+            margin: 0.8rem 0;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            border-radius: 8px;
+            transition: transform 0.2s;
+        }
+        .event:hover {
+            transform: translateX(5px);
+        }
+        .event.PUSH { border-left-color: #28a745; }
+        .event.PULL_REQUEST { border-left-color: #ffc107; }
+        .event.MERGE { border-left-color: #dc3545; }
+        .author { font-weight: 600; color: #667eea; }
+        .branch { font-weight: 600; color: #764ba2; }
+        .timestamp { color: #666; font-size: 0.9rem; margin-top: 0.3rem; }
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+        .badge.PUSH { background: #d4edda; color: #155724; }
+        .badge.PULL_REQUEST { background: #fff3cd; color: #856404; }
+        .badge.MERGE { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 GitHub Events Monitor</h1>
+        <div id="events" class="loading">Loading events...</div>
+    </div>
+
+    <script>
+        async function fetchEvents() {
+            try {
+                const response = await fetch('/events');
+                const events = await response.json();
+                displayEvents(events);
+            } catch (error) {
+                document.getElementById('events').innerHTML = '<p class="loading">Error loading events</p>';
+            }
+        }
+
+        function displayEvents(events) {
+            const container = document.getElementById('events');
+            
+            if (events.length === 0) {
+                container.innerHTML = '<p class="loading">No events yet</p>';
+                return;
+            }
+
+            container.innerHTML = events.map(event => {
+                let message = '';
+                
+                if (event.action === 'PUSH') {
+                    message = `<span class="author">${event.author}</span> pushed to <span class="branch">${event.to_branch}</span>`;
+                } else if (event.action === 'PULL_REQUEST') {
+                    message = `<span class="author">${event.author}</span> submitted a pull request from <span class="branch">${event.from_branch}</span> to <span class="branch">${event.to_branch}</span>`;
+                } else if (event.action === 'MERGE') {
+                    message = `<span class="author">${event.author}</span> merged branch <span class="branch">${event.from_branch}</span> to <span class="branch">${event.to_branch}</span>`;
+                }
+
+                return `
+                    <div class="event ${event.action}">
+                        <span class="badge ${event.action}">${event.action}</span>
+                        ${message}
+                        <div class="timestamp">⏰ ${event.timestamp}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Fetch immediately
+        fetchEvents();
+        
+        // Poll every 15 seconds
+        setInterval(fetchEvents, 15000);
+    </script>
+</body>
+</html>
