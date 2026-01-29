@@ -17,40 +17,43 @@ except Exception as e:
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    data = request.json
-    event_type = request.headers.get('X-GitHub-Event')
-    
-    event_data = {
-        'request_id': '',
-        'author': '',
-        'action': '',
-        'from_branch': None,
-        'to_branch': '',
-        'timestamp': datetime.utcnow().isoformat() + 'Z'
-    }
-    
-    if event_type == 'push':
-        event_data['request_id'] = data['head_commit']['id']
-        event_data['author'] = data['pusher']['name']
-        event_data['action'] = 'PUSH'
-        event_data['to_branch'] = data['ref'].split('/')[-1]
+    try:
+        data = request.json
+        event_type = request.headers.get('X-GitHub-Event')
         
-    elif event_type == 'pull_request':
-        pr = data['pull_request']
-        event_data['request_id'] = str(pr['id'])
-        event_data['author'] = pr['user']['login']
-        event_data['action'] = 'PULL_REQUEST' if data['action'] == 'opened' else 'MERGE'
-        event_data['from_branch'] = pr['head']['ref']
-        event_data['to_branch'] = pr['base']['ref']
-    
-    mongo.db.events.insert_one(event_data)
-    return jsonify({'status': 'success'}), 200
+        event_data = {
+            'request_id': '',
+            'author': '',
+            'action': '',
+            'from_branch': None,
+            'to_branch': '',
+            'timestamp': datetime.utcnow().isoformat() + 'Z'
+        }
+        
+        if event_type == 'push':
+            event_data['request_id'] = data['head_commit']['id']
+            event_data['author'] = data['pusher']['name']
+            event_data['action'] = 'PUSH'
+            event_data['to_branch'] = data['ref'].split('/')[-1]
+            
+        elif event_type == 'pull_request':
+            pr = data['pull_request']
+            event_data['request_id'] = str(pr['id'])
+            event_data['author'] = pr['user']['login']
+            event_data['action'] = 'PULL_REQUEST' if data['action'] == 'opened' else 'MERGE'
+            event_data['from_branch'] = pr['head']['ref']
+            event_data['to_branch'] = pr['base']['ref']
+        
+        mongo.db.events.insert_one(event_data)
+        print(f"Stored event: {event_data['action']} by {event_data['author']}")
+        return jsonify({'status': 'success'}), 200
+    except Exception as e:
+        print(f"Webhook error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/events', methods=['GET'])
 def get_events():
     try:
-        if mongo.db is None:
-            return jsonify({"error": "Database connection failed"}), 500
         events = list(mongo.db.events.find().sort('timestamp', -1).limit(20))
         for event in events:
             event['_id'] = str(event['_id'])
@@ -60,7 +63,8 @@ def get_events():
                 event['timestamp'] = dt.strftime('%d %B %Y - %I:%M %p UTC')
         return jsonify(events)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Events error: {e}")
+        return jsonify([])
 
 @app.route('/')
 def index():
