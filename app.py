@@ -6,8 +6,14 @@ import os
 app = Flask(__name__)
 # Try Railway's MONGO_URL first, then fallback to MONGO_URI
 mongo_uri = os.getenv("MONGO_URL") or os.getenv("MONGO_URI", "mongodb://localhost:27017/github_events")
+print(f"Using MongoDB URI: {mongo_uri[:20]}...")  # Debug log
 app.config["MONGO_URI"] = mongo_uri
-mongo = PyMongo(app)
+try:
+    mongo = PyMongo(app)
+    print("MongoDB connection initialized")
+except Exception as e:
+    print(f"MongoDB connection failed: {e}")
+    mongo = None
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -42,14 +48,19 @@ def webhook():
 
 @app.route('/events', methods=['GET'])
 def get_events():
-    events = list(mongo.db.events.find().sort('timestamp', -1).limit(20))
-    for event in events:
-        event['_id'] = str(event['_id'])
-        # Parse ISO string back to datetime for display formatting
-        if isinstance(event['timestamp'], str):
-            dt = datetime.fromisoformat(event['timestamp'].replace('Z', '+00:00'))
-            event['timestamp'] = dt.strftime('%d %B %Y - %I:%M %p UTC')
-    return jsonify(events)
+    try:
+        if mongo.db is None:
+            return jsonify({"error": "Database connection failed"}), 500
+        events = list(mongo.db.events.find().sort('timestamp', -1).limit(20))
+        for event in events:
+            event['_id'] = str(event['_id'])
+            # Parse ISO string back to datetime for display formatting
+            if isinstance(event['timestamp'], str):
+                dt = datetime.fromisoformat(event['timestamp'].replace('Z', '+00:00'))
+                event['timestamp'] = dt.strftime('%d %B %Y - %I:%M %p UTC')
+        return jsonify(events)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/')
 def index():
