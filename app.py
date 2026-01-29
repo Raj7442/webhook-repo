@@ -4,7 +4,9 @@ from datetime import datetime
 import os
 
 app = Flask(__name__)
-app.config["MONGO_URI"] = os.getenv("MONGO_URI", "mongodb://localhost:27017/github_events")
+# Try Railway's MONGO_URL first, then fallback to MONGO_URI
+mongo_uri = os.getenv("MONGO_URL") or os.getenv("MONGO_URI", "mongodb://localhost:27017/github_events")
+app.config["MONGO_URI"] = mongo_uri
 mongo = PyMongo(app)
 
 @app.route('/webhook', methods=['POST'])
