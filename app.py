@@ -13,21 +13,23 @@ def webhook():
     event_type = request.headers.get('X-GitHub-Event')
     
     event_data = {
-        'request_id': data.get('hook_id', ''),
+        'request_id': '',
         'author': '',
         'action': '',
         'from_branch': None,
         'to_branch': '',
-        'timestamp': datetime.utcnow()
+        'timestamp': datetime.utcnow().isoformat() + 'Z'
     }
     
     if event_type == 'push':
+        event_data['request_id'] = data['head_commit']['id']
         event_data['author'] = data['pusher']['name']
         event_data['action'] = 'PUSH'
         event_data['to_branch'] = data['ref'].split('/')[-1]
         
     elif event_type == 'pull_request':
         pr = data['pull_request']
+        event_data['request_id'] = str(pr['id'])
         event_data['author'] = pr['user']['login']
         event_data['action'] = 'PULL_REQUEST' if data['action'] == 'opened' else 'MERGE'
         event_data['from_branch'] = pr['head']['ref']
@@ -41,7 +43,10 @@ def get_events():
     events = list(mongo.db.events.find().sort('timestamp', -1).limit(20))
     for event in events:
         event['_id'] = str(event['_id'])
-        event['timestamp'] = event['timestamp'].strftime('%d %B %Y - %I:%M %p UTC')
+        # Parse ISO string back to datetime for display formatting
+        if isinstance(event['timestamp'], str):
+            dt = datetime.fromisoformat(event['timestamp'].replace('Z', '+00:00'))
+            event['timestamp'] = dt.strftime('%d %B %Y - %I:%M %p UTC')
     return jsonify(events)
 
 @app.route('/')
